@@ -108,7 +108,7 @@ def inputs(batch_size, train_test_split_ratio, num_parallel_calls=10):
 
     trn_dataset = make_dataset('{}/train.tfrecord'.format(tfrecord_data_dir), 'train')
 
-    test_dataset = make_dataset('{}/train.tfrecord'.format(tfrecord_data_dir), 'test')
+    test_dataset = make_dataset('{}/test.tfrecord'.format(tfrecord_data_dir), 'test')
 
     iterator = tf.data.Iterator.from_structure(trn_dataset.output_types, trn_dataset.output_shapes)
 
