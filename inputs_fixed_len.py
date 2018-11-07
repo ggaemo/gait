@@ -6,7 +6,7 @@ import numpy as np
 
 def make_tf_record_file(data, data_type):
 
-    def make_example(timeseries_data, y):
+    def make_example(timeseries_data, y_list):
 
         def _int64_feature(value):
             return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
@@ -22,7 +22,7 @@ def make_tf_record_file(data, data_type):
         timeseries_data_bytes = tf.compat.as_bytes(timeseries_data.values.tostring())
 
         features = tf.train.Features(feature={'x':_bytes_feature([timeseries_data_bytes]),
-                                              'y': _int64_feature([y]),
+                                              'y': _int64_feature(y_list),
                                               'max_len': _int64_feature([timeseries_maxlen])
                                               })
 
@@ -37,7 +37,9 @@ def make_tf_record_file(data, data_type):
     for key, val in data.items():
         timeseries_data, static_data, kl_grade = val
 
-        ex = make_example(timeseries_data, kl_grade)
+        kl_grade_list = [kl_grade['Rt'], kl_grade['Lt']]
+
+        ex = make_example(timeseries_data, kl_grade_list)
         writer.write(ex.SerializeToString())
     writer.close()
     print('tfrecord {} made'.format(data_type))
@@ -72,12 +74,12 @@ def inputs(batch_size, train_test_split_ratio, num_parallel_calls=10):
         parsed = tf.parse_single_example(
             serialized_example,
             features={'x': tf.FixedLenFeature([], tf.string),
-                      'y': tf.FixedLenFeature([], tf.int64),
+                      'y': tf.FixedLenFeature([2], tf.int64),
                       'max_len': tf.FixedLenFeature([], tf.int64)
         })
 
         x = tf.decode_raw(parsed['x'], tf.float32)
-        x = tf.reshape(x, [101, 23])
+        x = tf.reshape(x, [101, 46])
 
         # x = tf.cast(x, tf.float32)
 
@@ -109,6 +111,8 @@ def inputs(batch_size, train_test_split_ratio, num_parallel_calls=10):
     trn_dataset = make_dataset('{}/train.tfrecord'.format(tfrecord_data_dir), 'train')
 
     test_dataset = make_dataset('{}/test.tfrecord'.format(tfrecord_data_dir), 'test')
+
+    #
 
     iterator = tf.data.Iterator.from_structure(trn_dataset.output_types, trn_dataset.output_shapes)
 

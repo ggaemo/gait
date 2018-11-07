@@ -5,15 +5,17 @@ import os
 import model
 import re
 import time
+import numpy as np
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('-batch_size', type=int, default=64)
+parser.add_argument('-batch_size', type=int, default=32)
 parser.add_argument('-learning_rate', type=float, default=1e-4)
-parser.add_argument('-num_epochs', type=int, default=500)
+parser.add_argument('-num_epochs', type=int, default=300)
 parser.add_argument('-train_test_split_ratio', type=float, default=0.8)
 parser.add_argument('-rnn_hidden_dim', type=int)
-parser.add_argument('-f_phi_layers', type=int, nargs='+')
+parser.add_argument('-mlp_layers', type=int, nargs='+')
+parser.add_argument('-conv_layers', type=int, nargs='+')
 parser.add_argument('-option', type=str, default='')
 parser.add_argument('-restore', action='store_true', default=False)
 parser.add_argument('-save_interval', type=int, default=10)
@@ -21,13 +23,20 @@ args = parser.parse_args()
 
 
 def layer_config_to_str(layer_config):
-    return '-'.join([str(x) for x in layer_config])
+    return '_'.join([str(x) for x in layer_config])
 
-dir_format = 'model/bs-{}_rnn-{}-f_phi-{}'
+conv_layers_config = args.conv_layers
+
+args.conv_layers = [args.conv_layers[i:i+3] for i in
+                              np.arange(len(args.conv_layers), step =3)]
+
+
+dir_format = 'model/bs-{}_rnn-{}-mlp_layers-{}-cnn-{}'
 model_dir = dir_format.format(
     args.batch_size,
     args.rnn_hidden_dim,
-    layer_config_to_str(args.f_phi_layers)
+    layer_config_to_str(args.mlp_layers),
+    layer_config_to_str(conv_layers_config)
 )
 
 if args.option:
@@ -51,7 +60,8 @@ with tf.Graph().as_default():
         tf.add_to_collection('train_init_op', trn_init_op)
 
     with tf.variable_scope('model'):
-        model = model.Model(next_batch, args.rnn_hidden_dim, args.f_phi_layers, 5)
+        model = model.Model(next_batch, args.rnn_hidden_dim,
+                            args.conv_layers, args.mlp_layers, 5)
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -80,7 +90,6 @@ with tf.Graph().as_default():
 
             try:
                 while True:
-
                     if global_step % args.save_interval == 0:
                         _, global_step, trn_loss_summary, _ = sess.run([model.train_op,
                                                                      model.global_step,
@@ -93,13 +102,12 @@ with tf.Graph().as_default():
                         summary_writer.add_summary(trn_loss_summary, epoch_num)
                     else:
                         _, global_step, loss, _ = sess.run([model.train_op,
-                                                   model.global_step,
-                                                   model.loss,
-                                                         model.summary_update_ops
-                                                   ],
-                                                  trn_feed
-                                                  )
-
+                                                            model.global_step,
+                                                            model.loss,
+                                                            model.summary_update_ops
+                                                            ],
+                                                           trn_feed
+                                                           )
 
             except tf.errors.OutOfRangeError:
                 sess.run(model.increment_epoch_op)
