@@ -6,6 +6,7 @@ import model
 import re
 import time
 import numpy as np
+import utils
 
 parser = argparse.ArgumentParser()
 
@@ -14,16 +15,49 @@ parser.add_argument('-learning_rate', type=float, default=1e-4)
 parser.add_argument('-num_epochs', type=int, default=300)
 parser.add_argument('-train_test_split_ratio', type=float, default=0.8)
 parser.add_argument('-rnn_hidden_dim', type=int)
+parser.add_argument('-input_pool', type=int, help='poolsize, strides', nargs='+')
 parser.add_argument('-mlp_layers', type=int, nargs='+')
 parser.add_argument('-conv_layers', type=int, nargs='+')
 parser.add_argument('-option', type=str, default='')
 parser.add_argument('-restore', action='store_true', default=False)
 parser.add_argument('-save_interval', type=int, default=10)
+parser.add_argument('-selected_cols', type=str, nargs='+')
+parser.add_argument('-y_size', type=int)
 args = parser.parse_args()
 
+if args.selected_cols:
+    selected_cols = [x for x in utils.columns if any(y in x for y in args.selected_cols)]
+
+
+else:
+    selected_cols = ['Knee adduction moment_l',
+                     'Knee adduction moment_r',
+                     'Knee Flexion Angle_l',
+                     'Knee Flexion Angle_r',
+                     'Hip abduction moment_l',
+                     'Hip abduction moment_r',
+                     'Hip extension moment_l',
+                     'Hip extension moment_r']
+
+print(selected_cols)
+
+selected_cols_wo_leg = sorted(set([x.split('_')[0] for x in selected_cols]))
+selected_cols_to_str = '_'.join([
+    ''.join([y[0] for y in x.split()])
+    for x in selected_cols_wo_leg])
+
+selected_cols = sorted(selected_cols)
+
+selected_cols_idx = [utils.columns.index(x) for x in selected_cols]
+
+
+print(selected_cols)
 
 def layer_config_to_str(layer_config):
-    return '_'.join([str(x) for x in layer_config])
+    if layer_config:
+        return '_'.join([str(x) for x in layer_config])
+    else:
+        return None
 
 conv_layers_config = args.conv_layers
 
@@ -31,12 +65,14 @@ args.conv_layers = [args.conv_layers[i:i+3] for i in
                               np.arange(len(args.conv_layers), step =3)]
 
 
-dir_format = 'model/bs-{}_rnn-{}-mlp_layers-{}-cnn-{}'
+dir_format = 'model/bs-{}_rnn-{}-mlp_layers-{}-cnn-{}-input-{}-cols-{}'
 model_dir = dir_format.format(
     args.batch_size,
     args.rnn_hidden_dim,
     layer_config_to_str(args.mlp_layers),
-    layer_config_to_str(conv_layers_config)
+    layer_config_to_str(conv_layers_config),
+    layer_config_to_str(args.input_pool),
+    selected_cols_to_str
 )
 
 if args.option:
@@ -55,13 +91,16 @@ with tf.Graph().as_default():
         next_batch, trn_init_op, test_init_op = inputs_fixed_len.inputs(
             args.batch_size,
             args.train_test_split_ratio,
+            selected_cols_idx,
+            selected_cols_to_str,
             num_parallel_calls=20)
         tf.add_to_collection('test_init_op', test_init_op)
         tf.add_to_collection('train_init_op', trn_init_op)
 
     with tf.variable_scope('model'):
-        model = model.Model(next_batch, args.rnn_hidden_dim,
-                            args.conv_layers, args.mlp_layers, 5)
+        model = model.Model(next_batch, args.input_pool, selected_cols,
+                            args.rnn_hidden_dim,
+                            args.conv_layers, args.mlp_layers, args.y_size)
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -93,7 +132,7 @@ with tf.Graph().as_default():
                     if global_step % args.save_interval == 0:
                         _, global_step, trn_loss_summary, _ = sess.run([model.train_op,
                                                                      model.global_step,
-                                                                     model.trn_loss_summary,
+                                                                     model.trn_running_summary,
                                                                      model.summary_update_ops
                                                                      ],
                                                                     trn_feed
@@ -129,7 +168,7 @@ with tf.Graph().as_default():
                     while True:
                         if tmp_step % args.save_interval == 0:
                             _, test_loss_summary = sess.run([model.summary_update_ops,
-                                                             model.test_loss_summary],
+                                                             model.test_running_summary],
                                                             {model.is_training: False})
                             summary_writer.add_summary(test_loss_summary,
                                                        global_step=epoch_num)
