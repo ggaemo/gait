@@ -104,7 +104,6 @@ class Model():
 
         with tf.variable_scope('loss'):
             '''Left
-
             4    133
             0     99
             3     90
@@ -124,7 +123,7 @@ class Model():
                     labels=y_r, logits=logits_r)
                 xent_loss_raw_l = tf.nn.sparse_softmax_cross_entropy_with_logits(
                     labels=y_l, logits=logits_l)
-            else:
+            elif y_size == 5:
                 l_w = tf.constant([1.0, 2.0, 2.0, 2.0, 1.0])
                 r_w = tf.constant([1.0, 3.0, 2.0, 2.0, 1.0])
 

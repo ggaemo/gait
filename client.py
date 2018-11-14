@@ -25,10 +25,10 @@ parser.add_argument('-selected_cols', type=str, nargs='+')
 parser.add_argument('-y_size', type=int)
 args = parser.parse_args()
 
+
 if args.selected_cols:
-    selected_cols = [x for x in utils.columns if any(y in x for y in args.selected_cols)]
-
-
+    selected_cols = [x for x in utils.columns if any(y.lower() in x.lower() for y in
+                                                     args.selected_cols)]
 else:
     selected_cols = ['Knee adduction moment_l',
                      'Knee adduction moment_r',
