@@ -91,7 +91,7 @@ with tf.Graph().as_default():
         next_batch, trn_init_op, test_init_op = inputs_fixed_len.inputs(
             args.batch_size,
             args.train_test_split_ratio,
-            selected_cols_idx,
+            selected_cols,
             selected_cols_to_str,
             num_parallel_calls=20)
         tf.add_to_collection('test_init_op', test_init_op)
@@ -126,6 +126,9 @@ with tf.Graph().as_default():
             sess.run(tf.local_variables_initializer())
 
             trn_feed = {model.is_training: True}
+
+            a = sess.run(next_batch)
+            a = sess.run(model.get)
 
             try:
                 while True:

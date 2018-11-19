@@ -40,19 +40,19 @@ class Model():
                     print('conv maxpool', inputs.shape)
             return inputs
 
-        x = inputs['x']
+        x_t = inputs['x_t']
 
-        print('input', x.shape)
+        print('input_t', x_t.shape)
 
         if avg_pool:
             with tf.variable_scope('average_pooling_1d'):
                 pool_size, strides = avg_pool
-                x = tf.layers.average_pooling1d(x, pool_size, strides)
-                print('input pool', x.shape)
+                x_t = tf.layers.average_pooling1d(x_t, pool_size, strides)
+                print('input pool', x_t.shape)
 
-        import numpy as np
+        x_s = inputs['x_s']
 
-        batch_size = tf.shape(x)[0]
+        print('input_x', x_s.shape)
 
         y = inputs['y']
         if y_size == 2:
@@ -61,16 +61,28 @@ class Model():
         y_r = y[:, 0]
         y_l = y[:, 1]
 
-        max_len = inputs['max_len']
-
         with tf.variable_scope('conv_layer'):
             print('conv')
-            conv_outputs = build_conv1d(x, conv_layers)
+            # conv_outputs = build_conv1d(x_t, conv_layers)
 
             # last_states = tf.reduce_mean(conv_outputs, axis=1)
 
-            last_states = tf.layers.flatten(conv_outputs)
-            print('conv output flatten', last_states.shape)
+            # last_states = tf.layers.flatten(conv_outputs)
+            # print('conv output flatten', last_states.shape)
+
+
+        x_t_agg = inputs['x_t_agg']
+
+        self.get = x_t_agg
+
+        # last_states = tf.concat([last_states, x_s], axis=1)
+
+        last_states = tf.concat([x_t_agg, x_s], axis=1)
+
+
+
+
+        print('mlp_input', last_states.shape)
 
         # with tf.variable_scope('rnn_layer'):
         #     rnn_cell = tf.contrib.rnn.GRUCell(num_units=rnn_hidden_dim)
@@ -225,14 +237,14 @@ class Model():
 
                 test_running_summary = [tf.summary.scalar('test_xent_loss', self.loss)]
 
-                input_gradients = tf.reduce_sum(tf.abs(tf.gradients(self.loss, x)), axis=1)
-
-                for idx, col in enumerate(selected_cols):
-                    summary_value = input_gradients[:, idx]
-                    trn_running_summary.append(tf.summary.histogram('trn_{}'.format(col),
-                                                                    summary_value))
-                    test_running_summary.append(tf.summary.histogram('test_{}'.format(col),
-                                                                     summary_value))
+                # input_gradients = tf.reduce_sum(tf.abs(tf.gradients(self.loss, x_t)), axis=1)
+                #
+                # for idx, col in enumerate(selected_cols):
+                #     summary_value = input_gradients[:, idx]
+                #     trn_running_summary.append(tf.summary.histogram('trn_{}'.format(col),
+                #                                                     summary_value))
+                #     test_running_summary.append(tf.summary.histogram('test_{}'.format(col),
+                #                                                      summary_value))
 
                 self.trn_running_summary = tf.summary.merge(trn_running_summary)
 
