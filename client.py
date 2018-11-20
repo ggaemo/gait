@@ -10,7 +10,7 @@ import utils
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('-batch_size', type=int, default=32)
+parser.add_argument('-batch_size', type=int, default=8)
 parser.add_argument('-learning_rate', type=float, default=1e-4)
 parser.add_argument('-num_epochs', type=int, default=300)
 parser.add_argument('-train_test_split_ratio', type=float, default=0.8)
@@ -21,16 +21,16 @@ parser.add_argument('-conv_layers', type=int, nargs='+')
 parser.add_argument('-option', type=str, default='')
 parser.add_argument('-restore', action='store_true', default=False)
 parser.add_argument('-save_interval', type=int, default=10)
-parser.add_argument('-selected_cols', type=str, nargs='+')
+parser.add_argument('-timeseries_cols', type=str, nargs='+')
 parser.add_argument('-y_size', type=int)
 args = parser.parse_args()
 
 
-if args.selected_cols:
-    selected_cols = [x for x in utils.columns if any(y.lower() in x.lower() for y in
-                                                     args.selected_cols)]
+if args.timeseries_cols:
+    timeseries_cols = [x for x in utils.columns if any(y.lower() in x.lower() for y in
+                                                     args.timeseries_cols)]
 else:
-    selected_cols = ['Knee adduction moment_l',
+    timeseries_cols = ['Knee adduction moment_l',
                      'Knee adduction moment_r',
                      'Knee Flexion Angle_l',
                      'Knee Flexion Angle_r',
@@ -39,19 +39,18 @@ else:
                      'Hip extension moment_l',
                      'Hip extension moment_r']
 
-print(selected_cols)
+print(timeseries_cols)
 
-selected_cols_wo_leg = sorted(set([x.split('_')[0] for x in selected_cols]))
-selected_cols_to_str = '_'.join([
+timeseries_cols_wo_leg = sorted(set([x.split('_')[0] for x in timeseries_cols]))
+timeseries_cols_to_str = '_'.join([
     ''.join([y[0] for y in x.split()])
-    for x in selected_cols_wo_leg])
+    for x in timeseries_cols_wo_leg])
 
-selected_cols = sorted(selected_cols)
+timeseries_cols = sorted(timeseries_cols)
 
-selected_cols_idx = [utils.columns.index(x) for x in selected_cols]
+# timeseries_cols_idx = [utils.columns.index(x) for x in timeseries_cols]
 
-
-print(selected_cols)
+print(timeseries_cols)
 
 def layer_config_to_str(layer_config):
     if layer_config:
@@ -72,7 +71,7 @@ model_dir = dir_format.format(
     layer_config_to_str(args.mlp_layers),
     layer_config_to_str(conv_layers_config),
     layer_config_to_str(args.input_pool),
-    selected_cols_to_str
+    timeseries_cols_to_str
 )
 
 if args.option:
@@ -91,14 +90,14 @@ with tf.Graph().as_default():
         next_batch, trn_init_op, test_init_op = inputs_fixed_len.inputs(
             args.batch_size,
             args.train_test_split_ratio,
-            selected_cols,
-            selected_cols_to_str,
+            timeseries_cols,
+            timeseries_cols_to_str,
             num_parallel_calls=20)
         tf.add_to_collection('test_init_op', test_init_op)
         tf.add_to_collection('train_init_op', trn_init_op)
 
     with tf.variable_scope('model'):
-        model = model.Model(next_batch, args.input_pool, selected_cols,
+        model = model.Model(next_batch, args.input_pool, timeseries_cols,
                             args.rnn_hidden_dim,
                             args.conv_layers, args.mlp_layers, args.y_size)
 
@@ -127,7 +126,6 @@ with tf.Graph().as_default():
 
             trn_feed = {model.is_training: True}
 
-            a = sess.run(next_batch)
             a = sess.run(model.get)
 
             try:

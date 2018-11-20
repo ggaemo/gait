@@ -52,6 +52,8 @@ class Model():
 
         x_s = inputs['x_s']
 
+        batch_size = tf.shape(x_s)[0]
+
         print('input_x', x_s.shape)
 
         y = inputs['y']
@@ -77,12 +79,21 @@ class Model():
 
         # last_states = tf.concat([last_states, x_s], axis=1)
 
-        last_states = tf.concat([x_t_agg, x_s], axis=1)
+
+        # last_states = tf.concat([x_t_agg, x_s], axis=1)
+
+        x_t_agg_l, x_t_agg_r = tf.split(x_t_agg, 2, axis=1)
+
+        one_hot_r = tf.one_hot(tf.zeros(batch_size, dtype=tf.int32), 2)
+
+        last_states_r = tf.concat([x_t_agg_r, x_s, one_hot_r], axis=1)
+
+        one_hot_l = tf.one_hot(tf.ones(batch_size, dtype=tf.int32), 2)
+
+        last_states_l = tf.concat([x_t_agg_l, x_s, one_hot_l], axis=1)
 
 
-
-
-        print('mlp_input', last_states.shape)
+        print('mlp_input', last_states_l.shape)
 
         # with tf.variable_scope('rnn_layer'):
         #     rnn_cell = tf.contrib.rnn.GRUCell(num_units=rnn_hidden_dim)
@@ -102,14 +113,14 @@ class Model():
 
         with tf.variable_scope('mlp_right'):
             print('mlp_right')
-            mlp_r_output = build_mlp(last_states, mlp_layers)
+            mlp_r_output = build_mlp(last_states_r, mlp_layers)
             logits_r = tf.layers.dense(mlp_r_output,
                                        y_size,
                                        use_bias=False)
 
-        with tf.variable_scope('mlp_left'):
+        with tf.variable_scope('mlp_right', reuse=True):
             print('mlp_left')
-            mlp_l_output = build_mlp(last_states, mlp_layers)
+            mlp_l_output = build_mlp(last_states_l, mlp_layers)
             logits_l = tf.layers.dense(mlp_l_output,
                                        y_size,
                                        use_bias=False)
@@ -128,6 +139,15 @@ class Model():
             3     72
             2     71
             1     43            
+            
+            
+            if right == left :
+            0    99
+            4    90
+            1    33
+            3    20
+            2    20
+            
             '''
 
             if y_size == 2:
@@ -138,6 +158,8 @@ class Model():
             elif y_size == 5:
                 l_w = tf.constant([1.0, 2.0, 2.0, 2.0, 1.0])
                 r_w = tf.constant([1.0, 3.0, 2.0, 2.0, 1.0])
+                # r_w = tf.constant([1.0, 3.0, 5.0, 5.0, 1.1])
+                # l_w = r_w
 
                 # weights_r = tf.gather(l_w, y_r)
                 # weights_l = tf.gather(r_w, y_l)

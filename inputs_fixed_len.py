@@ -4,7 +4,7 @@ import random
 import tensorflow as tf
 import numpy as np
 
-def make_tf_record_file(data, selected_cols_idx, static_cols, tfrecord_data_dir,
+def make_tf_record_file(data, timeseries_cols, static_cols, tfrecord_data_dir,
                         data_type):
 
     def make_example(timeseries_data, static_data, timeseries_data_agg, y_list):
@@ -18,7 +18,7 @@ def make_tf_record_file(data, selected_cols_idx, static_cols, tfrecord_data_dir,
         def _float_feature(value):
             return tf.train.Feature(float_list=tf.train.FloatList(value=value))
 
-        timeseries_data = timeseries_data.loc[:,selected_cols_idx]
+        timeseries_data = timeseries_data.loc[:, timeseries_cols]
         timeseries_data = timeseries_data.astype(np.float32)
         # timeseries_maxlen =  timeseries_data.shape[0]
         timeseries_data_bytes = tf.compat.as_bytes(timeseries_data.values.tostring())
@@ -35,7 +35,7 @@ def make_tf_record_file(data, selected_cols_idx, static_cols, tfrecord_data_dir,
         static_data_bytes = tf.compat.as_bytes(static_data.values.tostring())
 
         agg_selected_cols_idx = list()
-        for col in selected_cols_idx:
+        for col in timeseries_cols:
             agg_selected_cols_idx.append(col + '_auc')
             agg_selected_cols_idx.append(col + '_mean')
             agg_selected_cols_idx.append(col + '_rms')
@@ -63,7 +63,7 @@ def make_tf_record_file(data, selected_cols_idx, static_cols, tfrecord_data_dir,
     for key, val in data.items():
 
         timeseries_data, static_data, kl_grade, timeseries_data_agg = val
-        sorted_cols = sorted(timeseries_data.columns)
+        sorted_cols = sorted(timeseries_data.columns, key=lambda x:(x[-1]=='r', x))
         timeseries_data = timeseries_data[sorted_cols]
 
         kl_grade_list = [kl_grade['Rt'], kl_grade['Lt']]
@@ -74,12 +74,12 @@ def make_tf_record_file(data, selected_cols_idx, static_cols, tfrecord_data_dir,
     print('tfrecord {} made'.format(data_type))
 
 
-def make_tfrecord_data(train_test_split_ratio, selected_cols_idx,
+def make_tfrecord_data(train_test_split_ratio, timeseries_cols,
                        static_cols, tfrecord_data_dir):
 
     # data_file = 'data/preprocessed_data.pkl'
     data_file = 'data/preprocessed_data_hip_extension_0_deleted.pkl'
-    print('data_deleted' * 100)
+    print('hip extension moment 0 data_deleted' * 100)
 
     with open(data_file, 'rb') as f:
         data = pickle.load(f)
@@ -104,18 +104,18 @@ def make_tfrecord_data(train_test_split_ratio, selected_cols_idx,
     train_data = {k:v for k,v in data.items() if k in train_key_list}
     test_data = {k: v for k, v in data.items() if k in test_key_list}
 
-    make_tf_record_file(train_data, selected_cols_idx, static_cols, tfrecord_data_dir,
+    make_tf_record_file(train_data, timeseries_cols, static_cols, tfrecord_data_dir,
                         'train')
-    make_tf_record_file(test_data, selected_cols_idx, static_cols, tfrecord_data_dir,
+    make_tf_record_file(test_data, timeseries_cols, static_cols, tfrecord_data_dir,
                         'test')
 
 
 
-def inputs(batch_size, train_test_split_ratio, selected_cols_idx,
+def inputs(batch_size, train_test_split_ratio, timeseries_cols,
            col_str, static_cols =('Age', 'Height', 'Weight', 'R_Speed'),
            num_parallel_calls=10):
 
-    num_var = len(selected_cols_idx)
+    num_var = len(timeseries_cols)
 
     def decode(serialized_example):
         """Parses an image and label from the given `serialized_example`."""
@@ -148,6 +148,7 @@ def inputs(batch_size, train_test_split_ratio, selected_cols_idx,
         dataset = dataset.map(decode, num_parallel_calls=num_parallel_calls)
 
         # dataset = dataset.filter(lambda x: tf.equal(x['y'][0], x['y'][1]))
+        # print('filtered only data with same kl degree' * 20)
 
         if data_type == 'train':
             dataset = dataset.shuffle(buffer_size = batch_size * 10)
@@ -161,7 +162,7 @@ def inputs(batch_size, train_test_split_ratio, selected_cols_idx,
 
     if not os.path.exists(tfrecord_data_dir):
         os.makedirs(tfrecord_data_dir)
-        make_tfrecord_data(train_test_split_ratio, selected_cols_idx, static_cols,
+        make_tfrecord_data(train_test_split_ratio, timeseries_cols, static_cols,
                            tfrecord_data_dir)
 
     trn_dataset = make_dataset('{}/train.tfrecord'.format(tfrecord_data_dir), 'train')
